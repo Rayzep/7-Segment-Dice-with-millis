@@ -1,0 +1,124 @@
+// Define segment pins for 7-segment display
+byte A = 2;
+byte B = 3;
+byte C = 4;
+byte D = 5;
+byte E = 6;
+byte F = 7;
+byte G = 8;
+byte DP = 10; // Define DP pin for the decimal point
+
+// Define button pin
+byte PUSHBUTTON = 9;
+
+// Define the dice roll result
+byte diceRoll = 1;
+
+// Timing variables for debouncing and long press
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50; // 50ms debounce time
+unsigned long buttonPressTime = 0;
+unsigned long longPressDuration = 2000; // 2 seconds for long press
+
+// Button state variables
+bool buttonState = HIGH;
+bool lastButtonState = HIGH;
+bool longPressActive = false;
+
+// Define an array of digits to display numbers from 0 to 9 (without DP)
+const byte digits[10][7] = {
+  // A, B, C, D, E, F, G
+  {1, 1, 1, 1, 1, 1, 1},  // 0
+  {0, 1, 1, 0, 0, 0, 0},  // 1
+  {1, 1, 0, 1, 1, 0, 1},  // 2
+  {1, 1, 1, 1, 0, 0, 1},  // 3
+  {0, 1, 1, 0, 0, 1, 1},  // 4
+  {1, 0, 1, 1, 0, 1, 1},  // 5
+  {1, 0, 1, 1, 1, 1, 1},  // 6
+  {1, 1, 1, 0, 0, 0, 0},  // 7
+  {1, 1, 1, 1, 1, 1, 1},  // 8
+  {1, 1, 1, 1, 0, 1, 1}   // 9
+};
+
+// Function to clear the display (turn off all segments except DP)
+void clearDisplay(bool dp = false) {
+  for (int i = A; i <= G; i++) {
+    digitalWrite(i, HIGH); // Turn off all segments
+  }
+  digitalWrite(DP, dp); // Control the decimal point (dp)
+}
+
+// Function to display a number on the 7-segment display with the option to show the decimal point
+void displayNumber(int num, bool dp = false) {
+  for (int i = 0; i < 7; i++) {
+    digitalWrite(A + i, digits[num][i]); // Map segments to pins
+  }
+  digitalWrite(DP, dp); // Control the decimal point (dp)
+}
+
+void setup() {
+  // Set segment pins as output
+  for (int i = A; i <= G; i++) {
+    pinMode(i, OUTPUT);
+  }
+  
+  // Set DP pin as output
+  pinMode(DP, OUTPUT);
+
+  // Set button pin as input
+  pinMode(PUSHBUTTON, INPUT_PULLUP); // Use internal pull-up resistor
+
+  // Initialize Serial communication at 9600 baud rate
+  Serial.begin(9600);
+
+  // Clear display and turn on only the decimal point
+  clearDisplay(true);
+}
+
+void loop() {
+  unsigned long currentTime = millis();
+  
+  // Read button state
+  bool reading = digitalRead(PUSHBUTTON);
+
+  // Check for state changes (debouncing)
+  if (reading != lastButtonState) {
+    lastDebounceTime = currentTime; // Reset debounce timer
+  }
+
+  // If the button state has been stable for debounceDelay, register the change
+  if ((currentTime - lastDebounceTime) > debounceDelay) {
+    if (reading != buttonState) {
+      buttonState = reading;
+
+      // Button just pressed
+      if (buttonState == LOW) {
+        buttonPressTime = currentTime; // Record the time when the button is pressed
+        longPressActive = false; // Reset long press flag
+      }
+
+      // Button just released
+      if (buttonState == HIGH && !longPressActive) {
+        diceRoll = random(1, 7); // Generate random number between 1 and 6
+        displayNumber(diceRoll, false); // Display the dice roll number without decimal point
+        Serial.print("Dice rolled: ");
+        Serial.println(diceRoll);
+      }
+    }
+  }
+
+  // Check for long press
+  if (buttonState == LOW && !longPressActive && (currentTime - buttonPressTime > longPressDuration)) {
+    longPressActive = true; // Long press is now active
+    // Countdown from 9 to 0
+    for (int i = 9; i >= 0; i--) {
+      displayNumber(i, false); // No decimal point during countdown
+      delay(1000); // Use delay here to slow down the countdown for readability
+    }
+  }
+
+  // Save the reading for the next loop iteration
+  lastButtonState = reading;
+}
+
+
